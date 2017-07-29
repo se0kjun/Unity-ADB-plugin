@@ -49,6 +49,7 @@ class CollapseLogPair
 
 public class UnityADBHelper : EditorWindow
 {
+    #region ADB command
     private string ADB_EXECUTABLE = "{0}/platform-tools/adb.exe";
 
     private const string ADB_DEVICE_CHECK = "devices";
@@ -60,6 +61,7 @@ public class UnityADBHelper : EditorWindow
     private string REMOTE_ADB = "tcpip {0}";
     private string REMOTE_ADB_CONNECT = "connect {0}:{1}";
     private const string REMOTE_ADB_DISCONNECT = "disconnect";
+    #endregion
 
     // only supports for Visual studio
     private string openEditorPath;
@@ -93,6 +95,9 @@ public class UnityADBHelper : EditorWindow
     Texture infoLogLevel;
     Texture errorLogLevel;
     Texture warningLogLevel;
+    int infoLogCount = 0;
+    int errorLogCount = 0;
+    int warningLogCount = 0;
 
     bool filterInfo = true;
     bool filterError = true;
@@ -132,7 +137,7 @@ public class UnityADBHelper : EditorWindow
         errorLogLevel = Resources.Load("error") as Texture;
         warningLogLevel = Resources.Load("warning") as Texture;
 
-        string.Format(ADB_EXECUTABLE, EditorPrefs.GetString("AndroidSdkRoot"));
+        ADB_EXECUTABLE = string.Format(ADB_EXECUTABLE, EditorPrefs.GetString("AndroidSdkRoot"));
         openEditorPath = EditorPrefs.GetString("kScriptsDefaultApp");
     }
 
@@ -151,7 +156,7 @@ public class UnityADBHelper : EditorWindow
         if (adbProcessBackground.ThreadState == System.Threading.ThreadState.Running)
             adbProcessBackground.Abort();
 
-        if (adbProcess != null)
+        if (adbProcess != null && !adbProcess.HasExited)
             adbProcess.Kill();
     }
 
@@ -159,12 +164,26 @@ public class UnityADBHelper : EditorWindow
     {
         Rect settingRect = EditorGUILayout.BeginHorizontal();
         useRemoteADB = EditorGUILayout.BeginToggleGroup("Use Remote ADB", useRemoteADB);
-        IPAddress = EditorGUILayout.TextField("IP Address", IPAddress);
-        port = EditorGUILayout.TextField("Port", port);
-
+        EditorGUILayout.BeginVertical();
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label("IP address");
+        IPAddress = GUILayout.TextField(IPAddress, GUILayout.Width(150));
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label("Port");
+        port = GUILayout.TextField(port, GUILayout.Width(150));
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.EndVertical();
         EditorGUILayout.EndToggleGroup();
+        EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("Connect"))
             RemoteADBSetting();
+        if (GUILayout.Button("Disconnect"))
+            RunCommand(REMOTE_ADB_DISCONNECT);
+        EditorGUILayout.EndHorizontal();
+        // indicator
+        GUILayout.FlexibleSpace();
+
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.BeginVertical();
@@ -197,17 +216,17 @@ public class UnityADBHelper : EditorWindow
 
         // just trigger when clicking button (edit)
         bool prevState = filterInfo;
-        filterInfo = GUILayout.Toggle(filterInfo, "Info" + adbLogs.Count.ToString(), "Button");
+        filterInfo = GUILayout.Toggle(filterInfo, "Info " + infoLogCount.ToString(), "Button");
         if (prevState != filterInfo)
             filterLogLevel ^= LogLevel.INFO;
 
         prevState = filterWarning;
-        filterWarning = GUILayout.Toggle(filterWarning, "Warning", "Button");
+        filterWarning = GUILayout.Toggle(filterWarning, "Warning " + warningLogCount.ToString(), "Button");
         if (prevState != filterWarning)
             filterLogLevel ^= LogLevel.WARNING;
 
         prevState = filterError;
-        filterError = GUILayout.Toggle(filterError, "Error", "Button");
+        filterError = GUILayout.Toggle(filterError, "Error " + errorLogCount.ToString(), "Button");
         if (prevState != filterError)
             filterLogLevel ^= LogLevel.ERROR;
         EditorGUILayout.EndHorizontal();
@@ -290,7 +309,8 @@ public class UnityADBHelper : EditorWindow
 
         if (clickedItemCode.Count != 0)
             foreach (ADBLogParse.LogCodePath path in clickedItemCode)
-                GUILayout.Button(path.codePath);
+                if (GUILayout.Button(path.codePath))
+                    OpenScript(path.codePath, path.codeLine);
 
         EditorGUILayout.EndVertical();
 
@@ -516,6 +536,19 @@ public class UnityADBHelper : EditorWindow
                             }
                             if (!noCollapseLog)
                                 adbCollapseLogs.Add(new CollapseLogPair(parseLogData));
+
+                            switch (parseLogData.adbLogLevel)
+                            {
+                                case LogLevel.INFO:
+                                    infoLogCount++;
+                                    break;
+                                case LogLevel.ERROR:
+                                    errorLogCount++;
+                                    break;
+                                case LogLevel.WARNING:
+                                    warningLogCount++;
+                                    break;
+                            }
 
                             adbLogs.Add(parseLogData);
                             parseLogData = new ADBLogParse();
