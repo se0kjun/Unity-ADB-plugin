@@ -84,7 +84,7 @@ public class UnityADBHelper : EditorWindow
     private bool startLogData = true;
 
     private string deviceID;
-    private string IPAddress;
+    private string IPAddress = "";
     private string port = "5555";
     private bool useRemoteADB;
     private Vector2 scrollPos = Vector2.zero;
@@ -180,10 +180,12 @@ public class UnityADBHelper : EditorWindow
             RemoteADBSetting();
         if (GUILayout.Button("Disconnect"))
             RunCommand(REMOTE_ADB_DISCONNECT);
-        EditorGUILayout.EndHorizontal();
-        // indicator
         GUILayout.FlexibleSpace();
-
+        if (GUILayout.Button("Raw log"))
+            ; // open other window
+        EditorGUILayout.EndHorizontal();
+        
+        // indicator
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.BeginVertical();
@@ -421,8 +423,8 @@ public class UnityADBHelper : EditorWindow
     {
         if (DeviceCheck())
         {
-            RunCommand(string.Format(REMOTE_ADB, IPAddress, port));
-            RunCommand(string.Format(REMOTE_ADB_CONNECT, IPAddress));
+            RunCommand(string.Format(REMOTE_ADB, port));
+            RunCommand(string.Format(REMOTE_ADB_CONNECT, IPAddress, port));
         }
         else
             EditorUtility.DisplayDialog("Remote ADB", "connect android device", "ok");
@@ -512,7 +514,8 @@ public class UnityADBHelper : EditorWindow
                     startLogData = true;
                     lock (lockLogs)
                     {
-                        if (parseLogData.adbLogLevel != LogLevel.UNKNOWN && parseLogData.rawLogMessage.Trim() != string.Empty)
+                        if (parseLogData.adbLogLevel != LogLevel.UNKNOWN && (parseLogData.rawLogMessage.Trim() != string.Empty 
+                            || (parseLogData.rawLogMessage.Trim() == string.Empty && parseLogData.adbLogLevel != LogLevel.INFO)))
                         {
                             foreach (Match regMatch in Regex.Matches(parseLogData.rawLogMessage, filePathPattern))
                             {
